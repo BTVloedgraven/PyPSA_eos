@@ -1054,8 +1054,6 @@ def define_objective(n, sns):
     # investment
     for c, attr in nominal_attrs.items():
         ext_i = get_extendable_i(n, c)
-        if c == 'Link':
-            ext_i = ext_i.drop('off_DC_767')
         cost = n.df(c)["capital_cost"][ext_i]
         if cost.empty:
             continue
@@ -1073,8 +1071,6 @@ def define_objective(n, sns):
         caps = get_var(n, c, attr).loc[ext_i]
         terms = linexpr((cost, caps))
         write_objective(n, terms)
-    write_objective(n, "+1.0 non_lin\n")
-
 
 def prepare_lopf(
     n,

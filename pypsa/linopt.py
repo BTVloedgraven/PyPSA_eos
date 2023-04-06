@@ -1089,10 +1089,13 @@ def run_and_read_gurobi(
         m.read(warmstart)
     pipe_id = f"x{get_var(n, 'Link', 'p_nom').loc['off_DC_767']}"
     pipe_var = m.getVarByName(pipe_id)
-    non_lin = m.addVar(name="non_lin")
-    # m.addConstr(pipe_var == non_lin*non_lin, "c1")
-    # m.addGenConstrPow(non_lin, pipe_var, 0.5)
-    m.addGenConstrPWL(pipe_var, non_lin, [0, 500, 1000, 2000], [0, 1400, 1900, 2700], "myPWLConstr")
+    # non_lin = m.addVar(name="non_lin", obj=1.0)
+    # m.addGenConstrPWL(pipe_var, non_lin, [0, 500, 1000, 2000], [0, 1400, 1900, 2700], "myPWLConstr")
+
+    # pipe_var.setAttr("Obj", 0.0)
+    # m.setPWLObj(pipe_var, [0, 1000, 2000], [0, 64e6, 86e6])
+    # m.update()
+    
     m.optimize()
     logging.disable(1)
 

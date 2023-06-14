@@ -1088,53 +1088,62 @@ def run_and_read_gurobi(
     if warmstart:
         m.read(warmstart)
 
-    # lifetime = 25
-    # discount_rate = 0.0225
-    # FOM = 0.0
+    e_cable = 0.44
+    e_station = 0.65
+    e_pipe = 0.26
+    P_ref = 2000
+    c_cable_ref = 2.6e6
+    c_station_ref = 800e6
+    a = c_cable_ref/P_ref**e_cable
+    b = c_station_ref/P_ref**e_station
 
-    # P = [0, 500, 1000, 2000, 4000]
-    # dc_station_investment = [0, 437e6, 591e6, 800e6, 1600e6]
-    # dc_cable_investment_per_km = [0, 1.4e6, 1.9e6, 2.7e6, 5.4e6]
+    P_pipe_ref = 13e3
+    c_pipe_ref = 4.8e6
+    coeff = c_pipe_ref/P_pipe_ref**e_pipe
 
-    # from vresutils.costdata import annuity
-    # yearly_capital_investment = (annuity(lifetime, discount_rate) + FOM/100.)
+    P = [0,500,1200,2000]
+    dc_cable_investment_per_km = [a*p**e_cable for p in P]
+    dc_station_investment = [b*p**e_station for p in P]
+    P.append(2*P[-1])
+    dc_cable_investment_per_km.append(2*dc_cable_investment_per_km[-1])
+    dc_station_investment.append(2*dc_station_investment[-1])
 
-    # def setPWLObj_dc_link(link):
-    #     link_id = f"x{get_var(n, 'Link', 'p_nom').loc[link.name]}"
-    #     link_var = m.getVarByName(link_id)
-    #     dc_cable_investment = [c * link.length for c in dc_cable_investment_per_km]
-    #     dc_investment = np.add(dc_cable_investment, dc_station_investment)
-    #     m.setPWLObj(link_var, P, [c * yearly_capital_investment for c in dc_investment])
-    #     if link.name == 'off_DC_767':
-    #         print([c * yearly_capital_investment for c in dc_investment])
+    P_pipe = [0, 4.7e3, 13e3]
+    h2_pipe_investment_per_km = [coeff*p**e_pipe for p in P_pipe]
+    P_pipe.append(2*P_pipe[-1])
+    h2_pipe_investment_per_km.append(2*h2_pipe_investment_per_km[-1])
+
+    from vresutils.costdata import annuity
+    lifetime = 25
+    discount_rate = 0.0225
+    FOM = 3.5
+    yearly_capital_investment_cable = (annuity(lifetime, discount_rate) + FOM/100.)
+
+    lifetime = 40
+    discount_rate = 0.0225
+    FOM = 5.0
+    yearly_capital_investment_pipe = (annuity(lifetime, discount_rate) + FOM/100.)
+
+    def setPWLObj_dc_link(link):
+        link_id = f"x{get_var(n, 'Link', 'p_nom').loc[link.name]}"
+        link_var = m.getVarByName(link_id)
+        dc_cable_investment = [c * link.length for c in dc_cable_investment_per_km]
+        onshore_station_cost = 0 if (('off' in link.bus0) and ('off' in link.bus1)) else 0.25
+        dc_investment = np.add(dc_cable_investment, [onshore_station_cost*c for c in dc_station_investment])
+        m.setPWLObj(link_var, P, [c * yearly_capital_investment_cable for c in dc_investment])
+    def setPWLObj_h2_pipe(pipe):
+        pipe_id = f"x{get_var(n, 'Link', 'p_nom').loc[pipe.name]}"
+        print(pipe_id)
+        pipe_var = m.getVarByName(pipe_id)
+        h2_pipe_investment = [c * pipe.length for c in h2_pipe_investment_per_km]
+        m.setPWLObj(pipe_var, P_pipe, [c * yearly_capital_investment_pipe for c in h2_pipe_investment])
 
     # offshore_dc_links = n.links.loc[(n.links.carrier == 'DC') & (n.links.index.str.contains('off'))]
     # offshore_dc_links.apply(setPWLObj_dc_link, axis=1)
+    # offshore_h2_pipes = n.links.loc[(n.links.carrier == 'H2 pipeline') & (n.links.index.str.contains('off'))]
+    # offshore_h2_pipes.apply(setPWLObj_h2_pipe, axis=1)
 
-    # def setPowerObj_dc_link(link):
-    #     link_id = f"x{get_var(n, 'Link', 'p_nom').loc['off_DC_767']}"
-    #     link_var = m.getVarByName(link_id)
-    #     dc_cable_investment = [c * link.length for c in dc_cable_investment_per_km]
-    #     dc_investment = np.add(dc_cable_investment, dc_station_investment)
-    #     import math
-    #     b = -math.log(dc_investment[2]/dc_investment[3])/math.log(P[3]/P[2])
-    #     a = dc_investment[2]/P[2]**b
-    #     print(a)
-    #     print(b)
-    #     link_var.Obj = 0.0
-    #     pwr_link_var = m.addVar()
-    #     pwr_link_var.Obj = a*yearly_capital_investment
-    #     m.addGenConstrPow(link_var,pwr_link_var,b)
-
-    # offshore_dc_links = n.links.loc['off_DC_767']
-    # setPowerObj_dc_link(offshore_dc_links)
-
-
-    # pipe_id = f"x{get_var(n, 'Link', 'p_nom').loc['off_DC_767']}"
-    # pipe_var = m.getVarByName(pipe_id)
-    # m.setPWLObj(pipe_var, [0, 1000, 2000], [0, 64e6, 86e6])
-    
-    # m.update()
+    m.update()
 
     m.optimize()
     logging.disable(1)
